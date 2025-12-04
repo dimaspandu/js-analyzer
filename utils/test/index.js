@@ -1,0 +1,3 @@
+await import("./getDestructureEndIndex.test.js");
+await import("./getDynamicImportEndIndex.test.js");
+await import("./getObjectLiteralsEndIndex.test.js");

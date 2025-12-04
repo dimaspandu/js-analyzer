@@ -220,5 +220,6 @@ runTest(
       return e.message;
     }
   })(),
-  "Unmatched ( / )"
+  "Unmatched ( / )",
+  true
 );
