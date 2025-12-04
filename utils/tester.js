@@ -4,6 +4,7 @@
  * - Preserve newlines at start/end
  */
 function normalize(str) {
+  str = String(str ?? "");
   return str.replace(/\r\n/g, "\n").replace(/\s+/g, " ").trim();
 }
 
