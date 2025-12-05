@@ -187,3 +187,7 @@ runTest("Test name", stringifyTokens(tokens), expectedOutput);
 - No AST information is used.  
 - No formatting or indentation is applied.  
 - Additional spacing rules can be added in `needsPunctuatorSpace()`.
+
+## License
+
+MIT

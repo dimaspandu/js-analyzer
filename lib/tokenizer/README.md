@@ -233,3 +233,7 @@ This tokenizer is designed to serve as a predictable and strict lexical layer fo
 
 Its simplicity and precision make it suitable for advanced tooling without requiring a full parser.
 
+## License
+
+MIT
+
