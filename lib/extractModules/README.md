@@ -49,9 +49,12 @@ export * as utils from "./utils.js";
 
     extractModules/
     ├── helper/
+    │   ├── parseAssertionObject.js
     │   ├── parseDynamicImport.js
     │   ├── parseExportFrom.js
-    │   └── parseStaticImport.js
+    │   ├── parseStaticImport.js
+    │   ├── parseTemplateLiteral.js
+    │   └── stripQuotes.js
     ├── test/
     │   └── index.js
     ├── main.js
