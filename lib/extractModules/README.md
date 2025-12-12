@@ -1,144 +1,170 @@
 # extractModules
 
-`extractModules` is a utility for scanning JavaScript token streams to
-extract all module dependencies. It identifies static imports, dynamic
-imports, and export-from statements. This tool is useful for lightweight
-code analysis, bundling, or building custom transpilers that need to
-understand module relationships.
+`extractModules(tokens)` is a lightweight, tokenizer-level module analyzer designed to detect three categories of module usage inside JavaScript source code:
 
-## Features
+1. **Static imports** — `import ... from "x"`, `import "x"`, and variations
+2. **Dynamic imports** — `import("x")`, including options and assertions
+3. **Export-from statements** — `export * from "x"`, `export { a, b } from "x"`
 
-### 1. Static Imports
+It operates entirely on **token arrays**, not ASTs, and uses a simple state machine–like linear scan.
 
-Supports all standard ES module static import forms, including:
+This makes it suitable for environments where:
 
-``` js
-import DefaultExport from "module";
-import { a, b as c } from "module";
-import * as Utils from "module";
-import "side-effect-only";
-import config from "./config.json" assert { type: "json" };
-import sheet from "./styles.css" with { type: "css" };
+* Minimal parsing cost is required
+* Only module detection is needed (not full code analysis)
+* Input has already been tokenized (e.g., by a custom tokenizer or simple lexer)
+
+---
+
+## Overview of the Algorithm
+
+At the highest level, the algorithm:
+
+1. Iterates through the token list using a `while (i < tokens.length)` loop.
+2. At each token, checks whether it begins one of the recognized module patterns.
+3. When a pattern is detected, the algorithm delegates to a helper:
+
+   * `parseStaticImport()`
+   * `parseDynamicImport()`
+   * `parseExportFrom()`
+4. Each helper returns:
+
+   * the extracted result object
+   * the next index (`nextIndex`) to continue scanning
+5. The result object is pushed into an accumulator list.
+6. The loop continues until the end of the token array.
+
+This results in a single-pass, O(n) time complexity, highly efficient for large files.
+
+---
+
+## High-Level Flow
+
+```txt
+┌───────────────────────────────────────────────────────────┐
+│ Start                                                     │
+└───┬───────────────────────────────────────────────────────┘
+    │
+    ▼
+Scan token[i]
+    │
+    ├── import ? ──▶ dynamic or static import? ──▶ parse
+    │
+    ├── export ? ──▶ export-from pattern? ───────▶ parse
+    │
+    └── otherwise continue
+    │
+    ▼
+Store result
+    │
+    ▼
+Continue scanning
+    │
+    ▼
+End
 ```
 
-### 2. Dynamic Imports
+The control structure is intentionally simple, allowing predictable behavior and easy extension.
 
-Supports dynamic import expressions, including:
+---
 
-``` js
-import("module");
-await import("module");
-import("module", { with: { type: "css" } });
-import(`./theme-${x}.css`);
-import("x").then(m => m.default);
+## Token-Based Pattern Detection
+
+Because the system operates on tokens rather than AST nodes, pattern recognition depends purely on **local token shapes**, for example:
+
+* Dynamic import is detected when encountering: `import` followed immediately by `(`.
+* Static import requires `import` followed by either an identifier, a `{`, a `*`, or a string literal.
+* Export-from is detected when `export` is followed by either `*` or a `{ ... }` block, plus a `from` keyword.
+
+Using token patterns like these avoids the need for a parser but still captures all module references.
+
+---
+
+## Responsibilities of Helper Parsers
+
+### `parseStaticImport(tokens, startIndex)`
+
+Extracts the target module of any static import construct, handling:
+
+* Default import
+* Named imports `{ a, b as x }`
+* Namespace imports `* as X`
+* Side-effect imports
+* `assert { ... }` or `with { ... }` syntax
+
+It advances until the module string is found and optionally parses attributes.
+
+### `parseDynamicImport(tokens, startIndex)`
+
+Handles all forms of `import(...)`, including:
+
+* Simple literal imports
+* Template literal usage
+* Options `{ with: { ... } }` or `{ assert: { ... } }`
+
+Also detects when a dynamic import is **non-literal** (e.g., template with interpolation), setting:
+
+```js
+literal: false
+reason: "template-literal"
 ```
 
-### 3. Export-From
+### `parseExportFrom(tokens, startIndex)`
 
-Supports all export-from patterns:
+Captures `export ... from "module"` patterns without inspecting the exported names, because only the module origin is relevant.
 
-``` js
-export * from "module";
-export { a, b } from "module";
-export { c as d } from "module";
-export { default as Comp } from "./comp.js";
-export * as utils from "./utils.js";
-```
+---
 
-## Architecture
+## Data Structure of Results
 
-    extractModules/
-    ├── helper/
-    │   ├── parseAssertionObject.js
-    │   ├── parseDynamicImport.js
-    │   ├── parseExportFrom.js
-    │   ├── parseStaticImport.js
-    │   ├── parseTemplateLiteral.js
-    │   └── stripQuotes.js
-    ├── test/
-    │   └── index.js
-    ├── main.js
-    └── README.md
+Every extracted item has the following shape:
 
-### main.js
-
-The main function coordinates:
-
-1.  Iterating through tokens
-2.  Detecting static imports, dynamic imports, or export-from statements
-3.  Delegating to parsing helpers
-4.  Returning an array of module extraction results
-
-Each extracted entry has the form:
-
-``` js
+```ts
 {
-  module: "module-name",
-  type: "static" | "dynamic" | "export",
-  assertions: { type: "json" } | null,
-  literal: true | false,
-  reason: null | "template-literal"
+  module: string;      // "./file.js" or a template string
+  type: "static" | "dynamic" | "export";
+  assertions: object | null; // e.g. { type: "json" }
+  literal: boolean;    // true for string literal, false for computed
+  reason: string | null; // explanation for non-literal
 }
 ```
 
-## Testing
+This structure is consistent across all module forms, making downstream processing simple—for example:
 
-All tests are located in:
+* Generating dependency graphs
+* Performing module resolution
+* Extracting import metadata
 
-    extractModules/test/index.js
+---
 
-Tests are executed through a helper `runTest()` and cover:
+## Why Use a Token-Based Approach?
 
-### Static Imports
+### Advantages
 
-Covers default imports, named imports, namespace imports, combined
-imports, side-effect imports, and imports using `assert {}` or
-`with {}`.
+* **Fast:** no parsing, no AST creation → O(n) scan
+* **Robust:** unaffected by JS syntax outside import/export
+* **Predictable:** minimal branching, explicit token patterns
+* **Configurable:** helpers can be extended without rewriting the core loop
 
-### Dynamic Imports
+### Limitations
 
-Covers basic dynamic imports, awaited imports, imports with options,
-template literals, template literals with options, and chained imports.
+* It assumes **correct tokenization** (input must already be syntactically valid)
+* Does **not** evaluate expressions (e.g., cannot calculate dynamic paths)
+* Limited to module syntax detection, not full JS semantic analysis
 
-### Export-From
-
-Covers wildcards, named exports, alias exports, namespace exports, and
-mixed export conditions.
-
-## Example Output
-
-If given tokens representing:
-
-``` js
-import(`./theme-${x}.css`);
-```
-
-The output is:
-
-``` js
-{
-  module: "`./theme-${x}.css`",
-  type: "dynamic",
-  assertions: null,
-  literal: false,
-  reason: "template-literal"
-}
-```
-
-## When to Use extractModules
-
-This utility is intended for:
-
--   Lightweight bundlers
--   Dependency graph analysis
--   Preprocessing modules
--   Custom ESM-to-CJS transpilation workflows
+---
 
 ## Summary
 
-`extractModules` is a lightweight, dependency-free module extractor
-capable of identifying all major import and export-from patterns using
-simple token analysis.
+`extractModules()` acts like a very small, efficient scanner for modern JavaScript module syntax. By combining a simple linear algorithm with specialized helper parsers, it provides complete coverage of:
+
+* Static `import`
+* Dynamic `import(...)`
+* `export ... from` forwarding
+
+All without relying on AST parsing.
+
+This makes it ideal for build tools, bundlers, analyzers, or compilers that simply need to **detect module dependencies** at the token level.
 
 ## License
 

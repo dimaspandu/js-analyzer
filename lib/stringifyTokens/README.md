@@ -1,192 +1,242 @@
 # stringifyTokens
 
-`stringifyTokens` is a low-level utility that reconstructs a JavaScript source string from an array of token objects.  
-It performs *minimal spacing logic* to ensure that tokens do not accidentally merge into different or invalid syntactic constructs.  
-This module does **not** perform formatting, pretty-printing, or AST-based code generation. It simply provides a safe, token-aware string reassembler.
-
-This function is used in lexers, transpilers, and refactoring tools that operate directly on token streams.
+This document explains the internal computational model, algorithmic rules, token–spacing heuristics, and structural design of the `stringifyTokens()` function. The goal is to give a clear understanding of **how the tokenizer-to-source reconstruction works**, why certain spacing rules exist, and how correctness is preserved without performing full pretty-printing.
 
 ---
 
-## Features
+## 1. Purpose of the Module
 
-- Converts a list of token objects into valid JavaScript code.
-- Inserts spaces only when necessary to prevent syntactic changes.
-- Correctly handles:
-  - Identifiers and keywords
-  - Numbers adjacent to identifiers
-  - Private identifiers (`#x`)
-  - Template literals (treated as atomic)
-  - Punctuator edge cases (`-- >`, `+ ++`, `- --`)
-- Avoids accidental operator merging.
-- Produces predictable and stable output.
+`stringifyTokens(tokens)` converts an array of **flat token objects** back into a JavaScript source string. It is designed as the inverse of a tokenizer for the purpose of:
+
+* test normalization,
+* round‑tripping tokens → minimal source code,
+* safe reconstruction without introducing syntactic errors.
+
+This module is *not* a formatter. It does **not** try to beautify or re-indent; it only inserts spaces where absolutely necessary to prevent accidental merging of tokens into unintended larger tokens.
 
 ---
 
-## When to Use
+## 2. Token Structure
 
-`stringifyTokens` is useful when:
+Each token is expected to have at least:
 
-- You have already tokenized code and want to reconstruct it safely.
-- You are building a tokenizer, linter, or code analyzer.
-- You are writing transformations on token arrays (e.g., rewriting import/export syntax).
-- You want a safer alternative to joining token values directly.
+```
+{ type: "identifier" | "keyword" | "number" | "string" | "punctuator" | "template" | "privateIdentifier", value: "..." }
+```
 
-This function is **not** intended for formatting or beautification. It does not attempt to restore the user's original whitespace layout.
+These types drive all spacing decisions.
 
 ---
 
-## Example
+## 3. High-Level Algorithm
 
-```js
-import stringifyTokens from "./stringifyTokens.js";
+The reconstruction algorithm is a **single-pass linear scan**:
 
-const tokens = [
-  { type: "keyword", value: "import" },
-  { type: "identifier", value: "foo" },
-  { type: "identifier", value: "from" },
-  { type: "string", value: '"module-x"' },
-  { type: "punctuator", value: ";" }
-];
-
-console.log(stringifyTokens(tokens));
-// Output:
-// import foo from"module-x";
 ```
+let out = ""
+for each token c at index i:
+    let p = tokens[i-1] (if any)
+    if template involved: append c.value
+    else determine if a space is required between p and c
+    append (space?) + c.value
+return out
+```
+
+The process is deterministic and O(n) in time and O(1) in extra memory.
 
 ---
 
-## How Spacing Works
+## 4. Core Spacing Rules
 
-### 1. Identifier / Keyword adjacency
+The key challenge is determining if two adjacent tokens must be separated by a space to avoid forming illegal or unintended JavaScript syntax.
 
-```
-let x    → space required
-foo bar → space required
-```
+### 4.1 Template Literal Tokens
 
-### 2. Number followed by word-like tokens
+Templates are considered **atomic**:
 
-```
-1in → invalid
-1 in → correct
-```
+* No inserted spaces
+* Adjacent tokens concatenate directly
 
-### 3. Word followed by number
+Reason: Template delimiters (`` ` ``, `${`, `}`) cannot be spaced without breaking semantics.
 
-```
-await1 → ambiguous  
-await 1 → safe
-```
+### 4.2 Word-like Tokens
 
-### 4. Template literals
+A "word-like" token means:
 
-Template tokens are always appended without surrounding spaces:
+* identifier
+* keyword
+* private identifier (#x)
 
-```
-`hello ${name}` → template tokens stay intact
-```
+Rules:
 
-### 5. Punctuator edge cases
+* Word + word → must insert space
+* Word + private id → must insert space
+* Private id + word → must insert space
 
-To avoid accidental operator merging:
+Examples:
 
 ```
--- >  → must not become -->
-+ ++ → spaced
-- -- → spaced
+letx      // wrong
+let x     // correct
+foo#bar   // wrong
+foo #bar  // correct
 ```
+
+### 4.3 Numbers Adjacent to Words
+
+Numbers must not merge with identifiers:
+
+```
+1in    // invalid
+1 in   // valid
+```
+
+Therefore:
+
+* number + word → space
+* word + number → space (safe rule)
+
+### 4.4 Punctuator Edge Cases
+
+Certain punctuator pairs must be spaced to prevent unintended operators.
+A helper function `needsPunctuatorSpace(a, b)` handles this.
+
+Cases:
+
+* `--` + `>` → would form `-->` (JSX closing syntax)
+* `+` + `++` → would merge into `+++`
+* `-` + `--` → would merge into `----`
+
+Default: no spacing.
 
 ---
 
-## API
-
-### `stringifyTokens(tokens: Token[]): string`
-
-Parameters:
-
-| Name    | Type     | Description |
-|---------|----------|-------------|
-| tokens  | `Array`  | Array of token objects as produced by the tokenizer. |
-
-Token shape:
-
-```ts
-{
-  type: string;   // "keyword", "identifier", "number", "punctuator", etc.
-  value: string;  // raw token text
-  start: number;  // original character index
-  end: number;
-  line: number;
-  column: number;
-}
-```
-
-Returns: Reconstructed JavaScript source string.
-
----
-
-## Directory Structure
+## 5. Pseudocode Model
 
 ```
-lib/
-  stringifyTokens/
-    main.js       → implementation
-    test/
-      index.js    → all test cases
-    README.md     → this file
-```
+out = ""
+for i in 0..len(tokens)-1:
+    c = tokens[i]
+    p = tokens[i-1] or null
 
----
+    if p is null:
+        out += c.value
+        continue
 
-## Running Tests
+    if p.type == "template" or c.type == "template":
+        out += c.value
+        continue
 
-You can run the entire test suite using:
+    needSpace = false
 
-```bash
-node lib/stringifyTokens/test
-```
+    if (word(p) and word(c)) or (word(p) and private(c)) or (private(p) and word(c)):
+        needSpace = true
 
-or:
+    if number(p) and (word(c) or private(c)):
+        needSpace = true
 
-```bash
-cd lib/stringifyTokens
-node test
-```
+    if word(p) and number(c):
+        needSpace = true
 
-The test runner prints individual PASS/FAIL results and a summary table. Failed tests are highlighted separately.
+    if punct(p) and punct(c) and needsPunctSpace(p.value, c.value):
+        needSpace = true
 
----
-
-## Test Philosophy
-
-Tests focus heavily on **import/export reconstruction**, because these syntaxes are sensitive to spacing and token adjacency:
-
-- Default imports  
-- Named imports  
-- Namespace imports  
-- Combined import forms  
-- Dynamic imports  
-- Export default  
-- Export named  
-- Export with specifiers  
-- Re-export patterns  
-- Edge cases without semicolons  
-
-Each test follows the structure:
-
-```js
-runTest("Test name", stringifyTokens(tokens), expectedOutput);
+    out += (needSpace ? " " : "") + c.value
+return out
 ```
 
 ---
 
-## Notes
+## 6. Why This Approach Works
 
-- The function assumes tokens are valid and ordered.  
-- No AST information is used.  
-- No formatting or indentation is applied.  
-- Additional spacing rules can be added in `needsPunctuatorSpace()`.
+The tokenizer already resolved all ambiguous contexts, such as:
+
+* `/regex/` vs division operator,
+* multi-character punctuators (`==`, `===`, `=>`),
+* spread vs rest operator.
+
+Therefore, reconstruction does **not** need to re-evaluate syntactic ambiguity. It only ensures tokens do not merge into invalid forms.
+
+By restricting itself to **minimal spacing**, `stringifyTokens()` guarantees:
+
+* deterministic tests,
+* compact code representation,
+* reversible token stream semantics.
+
+---
+
+## 7. Test Suite Interpretation
+
+The tests verify correctness across:
+
+### 7.1 Import / Export reconstruction
+
+Ensures keywords, identifiers, braces, and strings do not accidentally merge.
+
+Examples:
+
+```
+import A from"x";
+export{a,b}
+export default()=>x
+```
+
+### 7.2 Literal reconstruction
+
+```
+export"hello"
+export 123
+export`hello`
+```
+
+No spaces added unless required.
+
+### 7.3 Template literals
+
+```
+import A from`x/${y}`
+export default`x`
+```
+
+Ensures templates remain unmodified.
+
+### 7.4 Punctuator safety
+
+```
+-- >
++ ++
+- --
+```
+
+Spacing applied only in ambiguous cases.
+
+### 7.5 Mixed constructs
+
+```
+import X from"m1"export X
+```
+
+Multiple statements serialized tightly without extra semicolons.
+
+All tests demonstrate the same principle: **spacing is only inserted if omitting it would break JavaScript syntax or change its meaning**.
+
+---
+
+## 8. Summary
+
+`stringifyTokens()` is a:
+
+* linear-time,
+* deterministic,
+* space-minimal,
+* syntax-preserving token assembler.
+
+It performs **micro-spacing** logic rather than formatting, making it perfect for:
+
+* token-based transforms,
+* JS transpiler pipelines,
+* automated tests that require stable minimal output,
+* low-overhead source-code manipulation tools.
 
 ## License
 

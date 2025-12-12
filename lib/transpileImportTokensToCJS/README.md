@@ -1,180 +1,333 @@
-# transpileImportTokensToCJS
+# transpileImportTokensToCJS — Technical README
 
-This module provides a syntactic transformer that converts ESM-style JavaScript import statements into equivalent CommonJS (CJS) constructs. It operates entirely on token arrays produced by the tokenizer and performs shallow, syntax‑only transformations without evaluating or interpreting code.
+This document explains the internal design, algorithmic structure, and transformation workflow of `transpileImportTokensToCJS()`. It is written for developers who want to understand how the engine works from a computer‑science perspective rather than just as a user‑facing tool.
 
-## Overview
+---
 
-`transpileImportTokensToCJS(tokens)` takes an array of token objects and returns a new array of transformed tokens. Its focus is limited to import-related syntax, leaving all other code untouched.
+## 1. Purpose and Architecture Overview
 
-### Key Features
+`transpileImportTokensToCJS(tokens, dynamicImportIdentifier)` is a **syntactic transformer**: it rewrites *token arrays* representing ESM import syntax into their equivalent **CommonJS** constructs.
 
-- Filters out whitespace, newline, and comment tokens before matching patterns.
-- Supports:
-  - Default imports  
-    `import a from "mod"` → `const a = require("mod").default;`
-  - Named/destructured imports  
-    `import { a, b } from "mod"` → individual `const` assignments.
-  - Combined default + named  
-    `import a, { b } from "mod"`
-  - Namespace imports  
-    `import * as ns from "mod"`
-  - Combined default + namespace  
-    `import a, * as ns from "mod"`
-  - Bare imports  
-    `import "mod"` → `require("mod");`
-  - Dynamic imports  
-    `import("mod")` → `requireByHttp("mod");`
-- Supports skipping of `assert {}` and `with {}` blocks.
-- Uses a skip-index map to avoid outputting tokens that were replaced by transformed equivalents.
+Important architectural points:
 
-## Token Expectations
+* **Token‑to‑token transformer** — operates on *already tokenized* JavaScript code.
+* **Not a parser**, not an interpreter — no AST, no semantic validation, no scope analysis.
+* **Linear scan with local pattern matching** — uses a predictable O(n) algorithm.
+* **Mutation‑based strategy** — occasionally `splice()` modifies the stream, but via careful index handling.
+* **Skip‑map model** (`skippedIndex`) — avoids double‑emitting tokens.
 
-Tokens are expected to follow the tokenizer's conventions:
+Conceptually, the module behaves like a lightweight compiler pass that detects syntactic patterns and emits rewritten token sequences.
 
-- `{ type: "keyword", value: "import" }`
-- `{ type: "identifier", value: "foo" }`
-- `{ type: "string", value: ""mod"" }`
-- `{ type: "punctuator", value: "{" }`, etc.
+---
 
-The transformer assumes the stream has already been lexed correctly.
+## 2. Core Data Structures
 
-## Internal Helpers
+### 2.1 `tokens`
 
-### Filtering
+The raw token array. Elements look like:
 
 ```js
-tokens = tokens.filter(
-  t => t.type !== "newline" && t.type !== "whitespace" && t.type !== "comment"
-);
+{ type: "identifier", value: "import" }
+{ type: "punctuator", value: "{" }
+{ type: "string", value: "\"mod\"" }
 ```
 
-Reduces noise before pattern matching.
+Assumptions:
 
-### skippedIndex
+* Whitespace/comments are removed.
+* Adjacent syntactic tokens are intact.
 
-A map of token indices to skip. Used so original tokens are not emitted after they have been replaced with transformed output.
+### 2.2 `bufferTokens`
 
-### generateRequireTokens(pathToken)
+The output accumulator. All transformed tokens are pushed here in order.
+This is the primary return value.
 
-Builds the token sequence:
+### 2.3 `skippedIndex`
 
-```
-require("module")
-```
+A hash table mapping token indices to `1`.
 
-and returns it for reuse by higher-level patterns.
-
-## Transform Logic Summary
-
-### Default Import
-
-```
-import a from "mod";
-→
-const a = require("mod").default;
+```js
+skippedIndex[12] = 1;
 ```
 
-### Destructured Import
+Meaning: *“do not output the original token at index 12.”*
+
+This enables rewriting while keeping the main loop simple. When a complex import pattern is consumed, all consumed indices are marked as skipped.
+
+---
+
+## 3. High‑Level Algorithm
+
+At its core, the algorithm is:
 
 ```
-import { a, b } from "mod";
-→
+for each token i in tokens:
+    if token i begins an ESM import pattern:
+        parse pattern
+        emit new CJS tokens into bufferTokens
+        mark consumed tokens as skipped
+    else if not skipped:
+        copy token to bufferTokens
+return bufferTokens
+```
+
+### Complexity
+
+* **Time:** O(n) — single linear scan.
+* **Space:** O(n) — output size proportional to input + inserted require() tokens.
+
+---
+
+## 4. Pattern-Matching Strategy
+
+The transformer matches imports using **deterministic lookahead**.
+No backtracking, no recursion. Every branch tests tokens using fixed offsets:
+
+```js
+next(1), next(2), next(3)
+```
+
+The patterns and their rewrites:
+
+---
+
+## 5. Transformation Rules (By Pattern)
+
+Each rule checks a specific syntactic shape.
+Below are the major categories and how they are rewritten.
+
+### 5.1 Default Import
+
+Pattern:
+
+```
+import A from "mod"
+```
+
+Rewrite:
+
+```
+const A = require("mod").default;
+```
+
+Mechanism:
+
+* Insert `const`
+* Rewrite `from` → `=`
+* Splice: `require ( "mod" ) . default ;`
+* Skip trailing `assert {}` or semicolon
+
+### 5.2 Named Import (Destructuring)
+
+Pattern:
+
+```
+import { a, b as x } from "mod"
+```
+
+Rewrite:
+
+```
+const a = require("mod").a;
+const x = require("mod").b;
+```
+
+Algorithm:
+
+* `getDestructureEndIndex()` locates the matching `}`.
+* Walk each identifier and generate a line.
+* Skip original structure.
+
+### 5.3 Default + Named
+
+Pattern:
+
+```
+import d, { a, b } from "mod"
+```
+
+Combined rewrite:
+
+```
+const d = require("mod").default;
 const a = require("mod").a;
 const b = require("mod").b;
 ```
 
-Supports renaming:
+Same destructuring logic as above.
+
+### 5.4 Namespace Import
+
+Pattern:
 
 ```
-import { a as x } from "mod";
-→
-const x = require("mod").a;
+import * as ns from "mod"
 ```
 
-### Default + Destructuring
+Rewrite:
 
 ```
-import a, { b, c } from "mod";
-→
-const a = require("mod").default;
-const b = require("mod").b;
-const c = require("mod").c;
-```
-
-### Namespace Import
-
-```
-import * as ns from "mod";
-→
 const ns = require("mod");
 ```
 
-### Default + Namespace
+Inserts one simple assignment.
+
+### 5.5 Default + Namespace
+
+Pattern:
 
 ```
-import def, * as ns from "mod";
-→
+import d, * as ns from "mod"
+```
+
+Rewrite:
+
+```
 const ns = require("mod");
-const def = ns.default;
+const d = ns.default;
 ```
 
-### Bare Import
+Requires reading both bindings and emitting two separate constants.
+
+### 5.6 Bare Import
+
+Pattern:
 
 ```
-import "mod";
-→
+import "mod"
+```
+
+Rewrite:
+
+```
 require("mod");
 ```
 
-### Dynamic Import
+Side‑effect only.
+
+### 5.7 Dynamic Import
+
+Pattern:
 
 ```
-import("mod");
-→
-requireByHttp("mod");
+import("mod")
 ```
 
-Includes detection of nested parentheses via `getDynamicImportEndIndex`.
+Rewrite:
 
-## Unsupported Semantics
+```
+dynamicImportIdentifier("mod");
+```
 
-This transformer is **syntactic only**. It does not implement:
+Where `dynamicImportIdentifier` defaults to:
 
-- Execution semantics of ESM
-- Live bindings
-- Circular dependency behavior
-- Module namespace exotic objects
-- Top‑level await
+```
+requireByHttp
+```
 
-It is intended for lightweight, predictable static rewriting.
+Uses `getDynamicImportEndIndex()` to skip nested parentheses.
 
-## Usage Example
+---
+
+## 6. Helper: `generateRequireTokens()`
+
+This function builds the minimal token sequence for:
+
+```
+require("mod")
+```
+
+It returns:
 
 ```js
-import transpileImportTokensToCJS from "...";
-
-const tokens = tokenizer(`
-  import a from "x";
-  import { b, c as d } from "y";
-`);
-
-const out = transpileImportTokensToCJS(tokens);
-const code = stringifyTokens(out);
+[
+  { type: "identifier", value: "require" },
+  { type: "punctuator", value: "(" },
+  modulePathToken,
+  { type: "punctuator", value: ")" },
+]
 ```
 
-## Folder Structure Example
+Used throughout named/namespace import logic.
+
+---
+
+## 7. Handling `assert` and `with` Clause
+
+ESM allows metadata after imports:
 
 ```
-lib/
-  extractModules/
-  stringifyTokens/
-  tokenizer/
-  transpileImportTokensToCJS/
-    index.js
-    main.js
-  test/
-README.md
+import x from "y" assert { type: "json" }
 ```
+
+This transformer **ignores** the clause entirely.
+Algorithm:
+
+1. Detect keyword `assert` or `with`
+2. Skip the entire object literal via `getObjectLiteralsEndIndex()`
+3. Skip optional semicolon
+
+This keeps the transformer syntactic and avoids semantic interpretation.
+
+---
+
+## 8. Why Skip-Map Instead of Removing Tokens?
+
+Because removing tokens would shift indices and break lookahead.
+Instead:
+
+```
+skippedIndex[i] = 1
+```
+
+allows safe pattern‑matching while leaving original tokens in place.
+
+This results in:
+
+* deterministic pointer movement
+* fewer mutation hazards
+* simpler mental model
+
+---
+
+## 9. Example From the Test Suite
+
+### Input tokens
+
+```
+import DefaultExport from "mod"
+```
+
+### Output tokens
+
+```
+const DefaultExport = require("mod").default;
+```
+
+The test confirms exact match between EXPECTED and RESULT.
+
+---
+
+## 10. Summary
+
+`transpileImportTokensToCJS()` is a:
+
+* fast,
+* single‑pass,
+* token‑pattern‑matching,
+* side‑effect–free
+  transformer specializing in ESM → CommonJS rewrites.
+
+Its design emphasizes **predictability, simplicity, and portability** rather than full JavaScript semantics. This makes it ideal for build tools, prototype bundlers, or environments needing minimal dependency footprints.
+
+---
+
+If you want, I can also generate:
+
+* an architecture diagram,
+* algorithm pseudocode,
+* a test‑mapping table,
+* or a section describing common pitfalls when mutating token streams.
 
 ## License
 
