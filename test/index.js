@@ -2834,6 +2834,115 @@ runTest(
         reason: null
       }
     ]
+  }
+);
+
+/* ============================================================
+   5. OPTIONS HANDLING
+   ============================================================ */
+
+/**
+ * dynamicImportIdentifier override
+ */
+runTest(
+  "Dynamic import with custom dynamicImportIdentifier",
+  convertESMToCJSWithMeta(
+    `import("module-custom");`,
+    { dynamicImportIdentifier: "__dynamicRequire__" }
+  ),
+  {
+    code: `__dynamicRequire__("module-custom");`,
+    meta: [
+      {
+        module: "module-custom",
+        type: "dynamic",
+        assertions: null,
+        literal: true,
+        reason: null
+      }
+    ]
+  }
+);
+
+/**
+ * convertBlockBindingsToVar = false (default behavior)
+ */
+runTest(
+  "Preserve let and const when convertBlockBindingsToVar is false",
+  convertESMToCJSWithMeta(
+    `
+    let a = 1;
+    const b = 2;
+    import("module-const-let");
+    `
+  ),
+  {
+    code: `let a=1;const b=2;requireByHttp("module-const-let");`,
+    meta: [
+      {
+        module: "module-const-let",
+        type: "dynamic",
+        assertions: null,
+        literal: true,
+        reason: null
+      }
+    ]
+  }
+);
+
+/**
+ * convertBlockBindingsToVar = true
+ */
+runTest(
+  "Convert let and const to var when convertBlockBindingsToVar is enabled",
+  convertESMToCJSWithMeta(
+    `
+    let x = 10;
+    const y = 20;
+    import("module-var");
+    `,
+    { convertBlockBindingsToVar: true }
+  ),
+  {
+    code: `var x=10;var y=20;requireByHttp("module-var");`,
+    meta: [
+      {
+        module: "module-var",
+        type: "dynamic",
+        assertions: null,
+        literal: true,
+        reason: null
+      }
+    ]
+  }
+);
+
+/**
+ * Both options combined
+ */
+runTest(
+  "Custom dynamicImportIdentifier + convertBlockBindingsToVar",
+  convertESMToCJSWithMeta(
+    `
+    const theme = "dark";
+    import("./theme.js");
+    `,
+    {
+      dynamicImportIdentifier: "customLoader",
+      convertBlockBindingsToVar: true
+    }
+  ),
+  {
+    code: `var theme="dark";customLoader("./theme.js");`,
+    meta: [
+      {
+        module: "./theme.js",
+        type: "dynamic",
+        assertions: null,
+        literal: true,
+        reason: null
+      }
+    ]
   },
   true
 );
