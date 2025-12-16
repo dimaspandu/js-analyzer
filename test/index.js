@@ -2,7 +2,7 @@ import tokenizer from "../lib/tokenizer/main.js";
 import extractModules from "../lib/extractModules/main.js";
 import transpileImportTokensToCJS from "../lib/transpileImportTokensToCJS/main.js";
 import transpileExportTokensToCJS from "../lib/transpileExportTokensToCJS/main.js";
-import stringifyTokens from "../lib/stringifyTokens/main.js";
+import stringifyTokens from "../lib/stringifyJSTokens/main.js";
 import convertESMToCJSWithMeta from "../lib/convertESMToCJSWithMeta/main.js";
 import runTest from "../utils/tester.js";
 
