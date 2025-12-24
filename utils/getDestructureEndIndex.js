@@ -1,44 +1,45 @@
 /**
- * getDestructureEndIndex(tokens, startIndex)
+ * Find the end index of a destructuring pattern.
  *
- * Finds the end index of a destructuring pattern.
- * Supports both object `{ ... }` and array `[ ... ]` destructuring.
+ * Given a starting index pointing to the opening `{` or `[`
+ * of an object or array destructure, this scans forward through
+ * nested `{ ... }` or `[ ... ]` pairs and returns the index of the
+ * matching closing brace `}` or bracket `]`.
  *
  * Example patterns it can handle:
  *   { a, b }
  *   { a: { b, c }, d }
- *   [a, b, [c, d]]
- *   { a, b: [c, { d }] }
+ *   { a, b: { c: { d } } }
+ *   [a, b]
+ *   [a, [b, c]]
  *
  * Returns:
- * - The index of the matching `}` or `]`
- * - `null` if no matching closing brace/bracket is found
+ *   - The index of the matching `}` or `]`
+ *   - `null` if no matching closing brace is found
  */
 export default function getDestructureEndIndex(tokens, startIndex) {
-  const openTok = tokens[startIndex];
-
-  // Validate start token
-  if (!openTok || openTok.type !== "punctuator" || !["{", "["].includes(openTok.value)) {
-    return null;
-  }
-
-  const openValue = openTok.value;
-  const closeValue = openValue === "{" ? "}" : "]";
-
+  let endIndex = null;
   let depth = 0;
 
+  // Iterate from the starting token forward
   for (let i = startIndex; i < tokens.length; i++) {
-    const t = tokens[i];
+    const tok = tokens[i];
 
-    if (t.type === "punctuator") {
-      if (t.value === openValue) {
-        if (i !== startIndex) depth++;
-      } else if (t.value === closeValue) {
-        if (depth === 0) return i;
-        depth--;
+    // Increase depth on each opening brace/bracket
+    if (tok.type === "punctuator" && (tok.value === "{" || tok.value === "[")) {
+      depth++;
+    }
+    // Decrease depth on closing brace/bracket
+    else if (tok.type === "punctuator" && (tok.value === "}" || tok.value === "]")) {
+      depth--;
+
+      // If depth returns to zero, we found the matching closing bracket/brace
+      if (depth === 0) {
+        endIndex = i;
+        break;
       }
     }
   }
 
-  return null; // No matching closing token found
+  return endIndex;
 }
