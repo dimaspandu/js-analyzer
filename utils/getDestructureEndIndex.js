@@ -1,44 +1,44 @@
 /**
- * Find the end index of a destructuring pattern.
+ * getDestructureEndIndex(tokens, startIndex)
  *
- * Given a starting index pointing to the opening `{`
- * of an object destructure, this scans forward through
- * nested `{ ... }` pairs and returns the index of the
- * matching closing brace `}`.
+ * Finds the end index of a destructuring pattern.
+ * Supports both object `{ ... }` and array `[ ... ]` destructuring.
  *
  * Example patterns it can handle:
  *   { a, b }
  *   { a: { b, c }, d }
- *   { a, b: { c: { d } } }
+ *   [a, b, [c, d]]
+ *   { a, b: [c, { d }] }
  *
  * Returns:
- *   - The index of the matching `}`
- *   - `null` if no matching closing brace is found
+ * - The index of the matching `}` or `]`
+ * - `null` if no matching closing brace/bracket is found
  */
 export default function getDestructureEndIndex(tokens, startIndex) {
-  let endIndex = null;
+  const openTok = tokens[startIndex];
+
+  // Validate start token
+  if (!openTok || openTok.type !== "punctuator" || !["{", "["].includes(openTok.value)) {
+    return null;
+  }
+
+  const openValue = openTok.value;
+  const closeValue = openValue === "{" ? "}" : "]";
+
   let depth = 0;
 
-  // Iterate from the starting token forward
   for (let i = startIndex; i < tokens.length; i++) {
-    const idx = i;
-    const tok = tokens[idx];
+    const t = tokens[i];
 
-    // Increase depth on each opening brace
-    if (tok.type === "punctuator" && tok.value === "{") {
-      depth++;
-    }
-    // Decrease depth on closing brace
-    else if (tok.type === "punctuator" && tok.value === "}") {
-      depth--;
-
-      // If depth returns to zero, we found the matching '}'
-      if (depth === 0) {
-        endIndex = idx;
-        break;
+    if (t.type === "punctuator") {
+      if (t.value === openValue) {
+        if (i !== startIndex) depth++;
+      } else if (t.value === closeValue) {
+        if (depth === 0) return i;
+        depth--;
       }
     }
   }
 
-  return endIndex;
+  return null; // No matching closing token found
 }
