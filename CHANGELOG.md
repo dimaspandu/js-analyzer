@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.2.3] - 2026-08-13
+
+## Fixed
+
+- Fixed infinite loop in HTML tokenizer when parsing multiline tags with newline characters inside tag attributes.
+- Fixed trailing whitespace before `>` in minified HTML output for tags with attributes.
+- Renamed ambiguous test case to `Minify HTML - multiline tag with attributes` in HTML minifier test suite.
+
+## Added
+
+- Added test coverage for multiline HTML tags with attributes in both tokenizer and minifier.
+- Added regression test ensuring no trailing space before closing tag bracket after minification.
+
+---
+
 # [1.2.2] - 2026-05-02
 
 ## Added
