@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.2.5] - 2026-08-13
+
+## Fixed
+
+- Fixed HTML minifier to collapse newlines between text nodes and inline elements into a single space, matching standard HTML whitespace behavior.
+- Removed unwanted leading/trailing spaces in minified output for multiline text content.
+
+## Added
+
+- Added regression tests for multiline text node collapsing in HTML minifier:
+  - `Minify HTML - multiline text nodes collapse to single space`
+  - `Minify HTML - inline element between text nodes`
+  - `Minify HTML - inline element followed by text`
+
+---
+
 # [1.2.4] - 2026-08-13
 
 ## Fixed
