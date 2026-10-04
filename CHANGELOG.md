@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.2.8] - 2026-10-04
+
+## Fixed
+
+- Fixed HTML minifier gluing attributes together, which silently changed markup semantics.
+  - **Valueless attribute absorbed the next attribute.** The in-tag whitespace branch only kept the attribute separator when the previous token was `tag_name` or `attr_value`. `attr_name` was missing, so a boolean attribute (`disabled`, `required`, `checked`, …) or a bare `data-*` hook followed by any other attribute lost its separator and the two names merged into one. A browser then parses a single unknown attribute, so both names disappear and selectors such as `querySelector("[data-x]")` stop matching.
+    - `<section class="a" data-x data-y="2">` produced `<section class="a" data-xdata-y="2">`.
+  - The separator is now kept for every `tag_name -> attr_name`, `attr_name -> attr_name` and `attr_value -> attr_name` transition. The guard was also inverted to require the following token to be an `attr_name`, which drops whitespace hugging `=`, `>` and `/>` by construction instead of by exclusion. This matters: treating `attr_name` as a separator producer alone would have kept the space in `href = "b"`.
+- Fixed HTML tokenizer discarding newlines inside a tag, so an attribute starting at column 0 had no separator token at all and was glued onto the previous value.
+  - `<section\n  class="a"\naria-label="b"\n>` produced `<section class="a"aria-label="b">`.
+  - Browsers reparse `"a"aria-label="b"` as two attributes, so this affected cleanliness rather than correctness, but it contradicted the minifier's documented lossless behaviour.
+  - A newline inside a tag now emits a `whitespace` token, but only when indentation does not follow it (`readWhitespace` then supplies the separator) and when it does not hug `>` or `/>`. No new token appears where one already existed.
+
+## Added
+
+- Added 11 strict-equality regression cases to the HTML minifier test suite, covering valued/bare attributes, indented and column-0 layouts, whitespace around `=`, self-closing tags, boolean HTML attributes and SVG attribute casing. Each also asserts idempotency (`minifyHTML(minifyHTML(x)) === minifyHTML(x)`).
+  - These use `node:assert/strict` rather than `runTest`, whose normalisation collapses whitespace runs and therefore cannot detect excess separators.
+- Added tokenizer test `HTML: newline inside tag emits separator at column 0`, asserting the separator token exists between `attr_value` and `attr_name`, is not duplicated when indentation follows, and is absent before `tag_end`.
+
+## Changed
+
+- Documented the HTML attribute separator rule in `README.md` under Minifiers.
+
+---
+
 # [1.2.7] - 2026-10-02
 
 ## Fixed

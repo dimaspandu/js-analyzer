@@ -136,6 +136,28 @@ Minifiers are **language-specific**, but follow the same high-level strategy:
 
 JSON minification is implemented via **parse → stringify** for maximum correctness.
 
+### HTML Attribute Separators
+
+Whitespace inside a tag is collapsed to exactly one space, but only where a
+separator is actually required: immediately before each attribute. Whitespace
+hugging `=`, `>` and `/>` is always removed, so `href = "x"` normalises to
+`href="x"`.
+
+The separator is required for *every* attribute, including valueless ones.
+A boolean attribute such as `disabled` or a bare `data-*` hook produces no
+value token, so dropping the space after it would merge it with the next
+attribute name:
+
+```html
+<!-- input -->
+<input id="a" required name="b">
+<!-- produced without the separator: both names are lost on reparse -->
+<input id="a" requiredname="b">
+```
+
+Because this separator carries meaning, the HTML tokenizer records one even
+when an attribute starts at column 0 and no indentation follows it.
+
 ---
 
 # 7. stringifyTokens (lib/stringifyTokens/*)
