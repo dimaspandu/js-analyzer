@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.2.9] - 2026-10-04
+
+## Added
+
+- Added `package.json` providing an `npm test` entry point, aliasing the existing aggregated runner (`node test`). No install step is required.
+  - Declares `"type": "module"` so the `.js` files under `lib/` and `utils/` are loaded as ES modules.
+  - Declares `"engines": { "node": ">=22.7" }`, matching the syntax already in use.
+  - Marked `"private": true`.
+
+## Changed
+
+- Documented the dependency-free setup in `README.md`: `npm test` usage, running an individual suite directly, and an explicit note that `npm install` is unnecessary because `node_modules/` is never created.
+- Added `package.json` to the project structure diagram in `README.md`.
+
+## Notes
+
+- No `dependencies` or `devDependencies` were introduced. All module imports are relative, and the only non-relative imports are Node built-ins (`node:assert/strict`) used by two test suites. The project remains dependency-free by design.
+
+---
+
 # [1.2.8] - 2026-10-04
 
 ## Fixed

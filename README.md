@@ -57,6 +57,7 @@ js-analyzer/
 │   └── index.js        # Aggregated test runner
 │
 ├── utils/
+├── package.json       # ESM marker + `npm test` entry (no dependencies)
 ├── LICENSE
 └── README.md
 ```
@@ -82,6 +83,36 @@ This guarantees:
 * consistent execution order
 * zero implicit test registration
 * explicit coverage across all capabilities
+
+## Running the tests
+
+```
+npm test
+```
+
+which is a thin alias for `node test`.
+
+Individual suites can still be run directly, which is useful while working on
+one module:
+
+```
+node lib/minifier/html/test/index.js
+```
+
+## No dependencies, no install step
+
+The project has **zero runtime and dev dependencies**. There is nothing to
+install: `npm install` is not required and `node_modules/` is never created.
+
+This is deliberate. Every module is plain ESM using only relative imports, plus
+`node:assert/strict` in a couple of test files, which is a Node built-in rather
+than a package. That keeps the toolkit usable by copying the `lib/` directory
+into another project without any install, and it keeps the test suite free of
+supply-chain surface.
+
+`package.json` exists only to declare `"type": "module"` so `.js` files are
+loaded as ES modules, and to provide the `npm test` entry point. It is marked
+`"private": true` and intentionally declares no `dependencies` field.
 
 ---
 

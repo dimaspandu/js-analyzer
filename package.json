@@ -1,0 +1,14 @@
+{
+  "name": "js-analyzer",
+  "version": "1.2.9",
+  "private": true,
+  "type": "module",
+  "description": "A lightweight, token-based analysis and transformation toolkit for JavaScript and related web languages (CSS, HTML, JSON).",
+  "scripts": {
+    "test": "node test"
+  },
+  "engines": {
+    "node": ">=22.7"
+  },
+  "license": "MIT"
+}
