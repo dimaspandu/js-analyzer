@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.3.0] - 2026-10-06
+
+## Added
+
+- Component function invocation support in `transpileJSX`:
+  - Tag identifiers starting with an uppercase letter (e.g. `<Item>`, `<FooBar>`) now compile to function/component references instead of string tag names: `d(Item, ...)` rather than `d("Item", ...)`.
+  - Lowercase tags (HTML elements) keep the existing string behavior: `<div>` → `d("div", ...)`.
+- New test cases in `lib/transpileJSX/test/index.js` covering uppercase components without attributes, with attributes, with children, with expression children, mixed lowercase/uppercase nesting, and multi-word component names.
+
+## Changed
+
+- Only tag identifier handling in `parseElement()` changed. Factory name resolution (`compileJSX(source, factory)` parameter, `/** @jsx */` pragma, default `"d"`), attribute parsing, children parsing, and expression handling are unchanged.
+
+---
+
 # [1.2.9] - 2026-10-04
 
 ## Added

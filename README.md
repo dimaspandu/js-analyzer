@@ -275,6 +275,18 @@ const x = <div className="foo"><h1>{title}</h1>Hello</div>;
 const x = d("div", { "className": "foo" }, d("h1", null, title), "Hello");
 ```
 
+**Component function invocation:** a tag identifier starting with an uppercase letter (e.g. `Item`, `FooBar`) is treated as a reference to a function/component instead of a string tag name:
+
+```jsx
+// Input (JSX)
+const x = <Item text="Hello" />;
+
+// Output (factory: "d")
+const x = d(Item, { "text": "Hello" });
+```
+
+Lowercase tags (HTML elements) keep the string behavior: `<div>` → `d("div", ...)`.
+
 **Factory name** is configurable in priority order:
 1. `compileJSX(source, factory)` parameter — e.g. `compileJSX(src, "h")`
 2. `/** @jsx name */` pragma at the top of the source
@@ -282,6 +294,7 @@ const x = d("div", { "className": "foo" }, d("h1", null, title), "Hello");
 
 **Supported features:**
 - Elements, self-closing tags, nested elements
+- Component function invocation via uppercase tag identifiers
 - Fragments: `<>...</>` → `factory.fragment(...)`
 - Attributes: string values, expression containers, boolean, spread
 - Expression children: `{variable}`, template literals
