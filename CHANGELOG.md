@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.3.1] - 2026-10-25
+
+## Added
+
+- New test coverage for JSX component references with conditional rendering and direct function calls in `lib/transpileJSX/test/index.js`:
+  - Uppercase components (e.g. `<ProgressIndicator />`) compile as function references in ternary expressions: `d(ProgressIndicator, null)`
+  - Direct function calls (e.g. `renderGreeting()`) remain unchanged in expression contexts
+  - Fragments with multiple elements compile correctly with custom/default factories
+
+## Changed
+
+- JSX transpiler now treats uppercase tag identifiers as component/function references (implemented in `lib/transpileJSX/main.js`). Lowercase tags continue to compile as string element names. This behavior was added in 1.3.0 and is validated by additional regression tests.
+
+---
+
 # [1.3.0] - 2026-10-06
 
 ## Added
