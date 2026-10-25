@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.3.2] - 2026-10-25
+
+## Fixed
+
+- JSX spread attributes now allow whitespace after the opening brace, so `<StoryListItem { ...story } />` compiles to `d(StoryListItem, { ...(story) })`, matching `<StoryListItem {...story} />`.
+
+## Added
+
+- Added regression tests for JSX spread attributes with and without whitespace after the opening brace.
+
+---
+
 # [1.3.1] - 2026-10-25
 
 ## Fixed
