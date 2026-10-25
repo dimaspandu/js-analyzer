@@ -4,16 +4,17 @@ All notable changes to this project will be documented in this file.
 
 # [1.3.1] - 2026-10-25
 
+## Fixed
+
+- JSX inside JavaScript expression containers is now transpiled recursively. JSX in a conditional expression such as `{isLoading ? <ProgressIndicator /> : renderGreeting()}` compiles the component branch with the configured factory while preserving the direct function call branch.
+
 ## Added
 
-- New test coverage for JSX component references with conditional rendering and direct function calls in `lib/transpileJSX/test/index.js`:
-  - Uppercase components (e.g. `<ProgressIndicator />`) compile as function references in ternary expressions: `d(ProgressIndicator, null)`
-  - Direct function calls (e.g. `renderGreeting()`) remain unchanged in expression contexts
-  - Fragments with multiple elements compile correctly with custom/default factories
+- Added regression coverage in `lib/transpileJSX/test/index.js` for a custom `elementBuilder` factory, including a component reference in a conditional expression, a direct function call, and a multi-child fragment.
 
 ## Changed
 
-- JSX transpiler now treats uppercase tag identifiers as component/function references (implemented in `lib/transpileJSX/main.js`). Lowercase tags continue to compile as string element names. This behavior was added in 1.3.0 and is validated by additional regression tests.
+- JSX expressions now use the same configured factory as their surrounding JSX, including custom factories such as `elementBuilder`.
 
 ---
 
