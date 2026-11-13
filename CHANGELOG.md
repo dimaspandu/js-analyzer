@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 ## Added
 
 - Added regression tests in `lib/transpileJSX/test/index.js` for line and block comments between attributes, comments as the first item in an opening tag, comments before `>` and `/>`, multiple consecutive comments, comments adjacent to spread attributes, comment markers inside quoted attribute values, unterminated block comments, and `{/* ... */}` child expressions.
+- Added a complex demo-like regression test, `JSX - stateful component inside stateless view function`, covering a local stateful subtree created through `componentBuilder` nested inside a static view function, including a multi-line attribute handler and an expression child that calls `stateful.render()`.
 
 ---
 
