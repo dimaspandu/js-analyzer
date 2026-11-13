@@ -10,10 +10,14 @@ All notable changes to this project will be documented in this file.
   - A comment is dropped from the generated props object; it is not treated as an attribute.
   - Only `//` and `/*` start a comment, so the `/` of a self-closing `/>` still terminates the opening tag as before.
   - An unterminated `/*` inside an opening tag raises `SyntaxError: Unterminated comment at position N`.
+- Top-level comments in the surrounding JavaScript no longer swallow the JSX that follows them. `transformJS()` now skips `//` line comments and `/* ... */` block comments before checking for string literals, so an apostrophe or quote inside a comment (for example `the view's listener`) is no longer mistaken for a string delimiter that runs past the JSX.
+  - The comment text itself is preserved verbatim in the output; only the JSX inside it is transformed.
+  - String literals in ordinary JavaScript are still skipped as before, so `"view's listener"` in real code remains a string.
 
 ## Added
 
 - Added regression tests in `lib/transpileJSX/test/index.js` for line and block comments between attributes, comments as the first item in an opening tag, comments before `>` and `/>`, multiple consecutive comments, comments adjacent to spread attributes, comment markers inside quoted attribute values, unterminated block comments, and `{/* ... */}` child expressions.
+- Added a `COMMENTS AT TOP LEVEL (OUTSIDE JSX)` test group covering block and line comments before JSX, apostrophes inside block and line comments, multiple consecutive top-level comments, a comment between two JSX elements, an apostrophe inside a real string before JSX, and `//` inside a block comment (a URL).
 - Added a complex demo-like regression test, `JSX - stateful component inside stateless view function`, covering a local stateful subtree created through `componentBuilder` nested inside a static view function, including a multi-line attribute handler and an expression child that calls `stateful.render()`.
 
 ---
