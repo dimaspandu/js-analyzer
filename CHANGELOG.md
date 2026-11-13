@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.3.3] - 2026-11-13
+
+## Fixed
+
+- JSX comments inside an opening tag no longer throw `Expected identifier at position N`. `readAttributes()` now skips `//` line comments and `/* ... */` block comments between attributes, so inputs such as `<div /* layout */ className="x" />` and multi-line attribute lists with `//` comments compile correctly.
+  - A comment is dropped from the generated props object; it is not treated as an attribute.
+  - Only `//` and `/*` start a comment, so the `/` of a self-closing `/>` still terminates the opening tag as before.
+  - An unterminated `/*` inside an opening tag raises `SyntaxError: Unterminated comment at position N`.
+
+## Added
+
+- Added regression tests in `lib/transpileJSX/test/index.js` for line and block comments between attributes, comments as the first item in an opening tag, comments before `>` and `/>`, multiple consecutive comments, comments adjacent to spread attributes, comment markers inside quoted attribute values, unterminated block comments, and `{/* ... */}` child expressions.
+
+---
+
 # [1.3.2] - 2026-10-25
 
 ## Fixed
