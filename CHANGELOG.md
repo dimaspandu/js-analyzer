@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+# [1.3.4] - 2026-11-20
+
+## Added
+
+- JSX factory can now be resolved from pragma comments in source:
+  - `/** @jsx <factory> */` — JSX factory name; dotted paths such as `document.createElement` are supported.
+  - `/** @jsxRuntime <mode> */` — JSX runtime mode (e.g. `"classic"`); stripped from output, does not change the factory.
+  - `/** @jsxFrag <fragment> */` — fragment factory; dotted paths such as `document.createDocumentFragment` are supported. Fragments compile to `<fragmentFactory>(...)` when set, otherwise to `factory.fragment(...)`.
+- Priority order for factory resolution: explicit `factory` parameter > `@jsx` pragma > default `"d"`.
+- All pragma comments are stripped from the transpiled output so they do not leak into the result.
+- New regression tests in `lib/transpileJSX/test/index.js` covering `@jsx` with dotted-path factories, `@jsxRuntime classic`, `@jsxFrag` with dotted-path factories, and all three pragmas combined.
+
+## Changed
+
+- `/** @jsx name */` pragma parsing now accepts dotted-path factory names instead of a single identifier only.
+
 # [1.3.3] - 2026-11-13
 
 ## Fixed
